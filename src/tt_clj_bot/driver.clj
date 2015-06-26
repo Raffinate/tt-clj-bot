@@ -84,6 +84,20 @@
     (log :info "Logout...")
     (process-action session [:logout])))
 
+(defn- actions-hide-private-info [actions]
+  (mapv #(if (and (sequential? %)
+                  (= (first %) :login))
+           [:login "*hidden-email*" "*hidden-password*"]
+           %) actions))
+
+(defn wait-retry
+  ([]
+   (wait-retry +error-wait-time+))
+  ([seconds]
+   (log :info "Retrying in " seconds " seconds.")
+   (process-action nil seconds)
+   true))
+
 (defn run [logic-fn]
   (let [recur?
         (try+
@@ -92,28 +106,28 @@
          (loop [session nil]
            (let [{:keys [result output]} (logic-fn session)
                  actions (interleave result (repeat +interleave-wait-time+))]
-             (log :info "Bot log: " [output])
-             (log :info "Actions: " [actions])
+             (log :info "Bot log: " output)
+             (log :info "Actions: " (actions-hide-private-info actions))
              (if (empty? actions)
                (logout session)
                (recur (reduce process-action session actions)))))
          (log :info "Stoping bot...")
 
+         (catch [:type :tt-clj-bot.logic/timeout-error] {:keys [message]}
+           (log :info "Execution Warning!")
+           (log :info message)
+           (wait-retry))
          (catch [:type :tt-clj-bot.driver/action-error] {:keys [message]}
            (log :info "Action Exception!")
            (log :info message)
-           (log :info "Retrying in " +error-wait-time+ " seconds.")
-           (process-action nil +error-wait-time+)
-           true)
+           (wait-retry))
          (catch java.net.SocketException e
            (log :info "Socket Exception!")
            (log :info "Exception: " e)
            (log :info &throw-context)
            (log :info "StackTrace:")
            (log :info  "\n" (interpose "\n" (map str (:stack-trace &throw-context))))
-           (log :info "Retrying in " +error-wait-time+ " seconds.")
-           (process-action nil +error-wait-time+)
-           true))]
+           (wait-retry)))]
     (when recur?
       (recur logic-fn))))
 

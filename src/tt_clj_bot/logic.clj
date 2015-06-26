@@ -43,8 +43,14 @@
             (sb logic-code {#'*session* session #'*out* out})
             :output
             (str out)})
-         (catch java.util.concurrent.ExecutionException _
+         (catch java.util.concurrent.TimeoutException _
+           (throw+ {:type ::timeout-error :message (:message &throw-context)}))
+         (catch Object _
            (throw+ {:type ::execution-error :message (:message &throw-context)})))))))
+         ;; (catch java.util.concurrent.ExecutionException _
+         ;;   (throw+ {:type ::execution-error :message (:message &throw-context)}))
+         ;; (catch java.lang.SecurityException _
+         ;;   (throw+ {:type ::execution-error :message (:message &throw-context)})))))))
 
 
 

@@ -4,7 +4,7 @@
             [clojure.tools.logging :as logger])
   (:use [tt-clj-bot.logic :only [setup-jvm-default make-logic]]
         [tt-clj-bot.driver :only [run]]
-        [slingshot.slingshot :only [try+]]
+        [slingshot.slingshot :only [try+ throw+]]
         ))
 
 (def ^:private +help-data+
@@ -18,41 +18,52 @@
    [4 "ATTENTION: make sure that you is the only one who can read logs and output."]]
   )
 
-(defn print-help [help-data]
-  (map #(println (reduce str (repeat (first %) " "))
-                 (second %)) +help-data+))
+(defn help-string [help-data]
+  (reduce str (map #(str (reduce str (-> % first (repeat " ")))
+                         (second %) "\n")
+                   help-data)))
 
 (defn assert-argcount [args]
+  (when (or (= (first args) "--help") (= (first args) "-h"))
+    (throw+ {:type ::command-line-error :message (help-string +help-data+)}))
   (when (not (or (-> args count (= 1))
                  (-> args count (= 2))))
-    (print-help +help-data+)
-    (System/exit 1)))
+    (throw+ {:type ::command-line-error :message (help-string +help-data+)})))
+
 
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (assert-argcount args)
   (try+
-   (setup-jvm-default)
-   (let [account (when (= (count args) 2)
-                   (-> args second slurp read-string))]
-     (-> args
-         first
-         slurp
-         read-string
-         (make-logic (:email account) (:password account))
-         run))
-   (catch java.io.FileNotFoundException _
-     (print-help +help-data+)
-     (logger/error "Specify accessible files."))
-   (catch [:type :tt-clj-bot.logic/execution-error] {:keys [message]}
-     (logger/error "Execution error in bot source. Fixbot!")
-     (logger/error message))
+   (try+
+    (assert-argcount args)
+    (setup-jvm-default)
+    (let [account (when (= (count args) 2)
+                    (-> args second slurp read-string))]
+      (-> args
+          first
+          slurp
+          read-string
+          (make-logic (:email account) (:password account))
+          run))
+    (catch [:type :tt-clj-bot.core/command-line-error] {:keys [message]}
+      (println message))
+    (catch java.io.FileNotFoundException _
+      (logger/error (:message &throw-context)))
+    (catch [:type :tt-clj-bot.logic/execution-error] {:keys [message]}
+      (logger/error "Execution error in bot source.")
+      (logger/error message))
+    (catch java.lang.RuntimeException e
+      (if (= (:message &throw-context) "EOF while reading")
+        (do (logger/error "Execution error in bot/account source.")
+            (logger/error (:message &throw-context))
+            (logger/error "Perhaps you have parentheses mismatched."))
+        (throw+ e)))
    (catch Object e
      (logger/error "Exception: " e)
      (logger/error &throw-context)
      (logger/error "StackTrace:")
-     (logger/error  "\n" (interpose "\n" (map str (:stack-trace &throw-context)))))))
+     (logger/error  "\n" (interpose "\n" (map str (:stack-trace &throw-context))))))))
 
 
 

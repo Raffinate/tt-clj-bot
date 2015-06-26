@@ -12,7 +12,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                         TODO                       ;;
 ;; Understand which kind of exceptions can be thrown. ;;
-;; Throw same style exceptions on error responses.    ;;
+;; Throw exceptions on error responses.               ;;
+;; Or maybe leave such errors in response to leave    ;;
+;; them for bot code.                                 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;;;;;;;;;;;;;;;;
