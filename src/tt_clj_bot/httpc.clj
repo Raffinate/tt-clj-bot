@@ -127,6 +127,15 @@
   [session card post-params]
   (request session :use-card {:request-args {:form-params post-params}}))
 
+(defn account-info [session id]
+  (request session :account-info {:method-path-args [id]}))
+
+(defn places-list [session]
+  (request session :places-list))
+
+(defn place-info [session place-id]
+  (request session :place-info {:method-path-args [place-id]}))
+
 ;;;;;;;;;;;;;
 ;; THE END ;;
 ;;;;;;;;;;;;;
@@ -145,9 +154,12 @@
    :logout {:method :post
             :path ["/accounts/auth/api/logout"]
             :version "1.0"}
+   :account-info {:method :get
+                  :path ["/accounts/" "/api/show"]
+                  :version "1.0"}
    :game-info {:method :get
-          :path ["/game/api/info"]
-          :version "1.3"}
+               :path ["/game/api/info"]
+               :version "1.3"}
    :use-ability {:method :post
                  :path ["/game/abilities/" "/api/use"]
                  :version "1.0"
@@ -170,6 +182,15 @@
    :use-card {:method :post
               :path ["/game/cards/api/use"]
               :version "1,0"}
+
+   :places-list {:method :get
+                 :path ["/game/map/places/api/list"]
+                 :version "1.0"}
+
+   :place-info {:method :get
+                :path ["/game/map/places/" "/api/show"]
+                :version "1.0"}
+
    })
 
 (defn- make-session-p []

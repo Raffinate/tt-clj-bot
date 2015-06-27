@@ -41,7 +41,7 @@ Create a source file with bot logic. There is a tutorial bot in this repo.
                  [:game-info]])
 
 ### Bugs
-
+  Quest decision selection doesn't work.
 ## License
 
 Copyright © 2015 Raffinate

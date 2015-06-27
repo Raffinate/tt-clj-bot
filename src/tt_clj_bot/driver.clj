@@ -25,20 +25,22 @@
   #{:login :api-info :logout :game-info
     :get-card :use-ability :combine-cards :use-card})
 
-(defn- valid-action? [action-type]
-  (contains? +supported-action-types+ action-type))
+(defn- valid-action? [session action-type]
+  ;(print session action-type)
+  (contains? (:api-settings (if session session (tale/make-session))) action-type))
+;  (contains? +supported-action-types+ action-type))
 
 (defn- the-alias [name] (get (ns-aliases *ns*) name))
 
-(defn- from-action-type [action-type]
+(defn- from-action-type [session action-type]
 ;;; TODO: Find why the commented line does work in repl
 ;;; And doen't in application
-  (when (valid-action? action-type)
+  (when (valid-action? session action-type)
     ;(println (->> action-type name symbol (ns-resolve (the-alias 'tale))))
     (->> action-type name symbol (ns-resolve 'tt-clj-bot.httpc))))
 
 (defn- apply-action [session action]
-  (let [action-fn (from-action-type (first action))
+  (let [action-fn (from-action-type session (first action))
         arguments (rest action)]
     (when (nil? action-fn)
       (throw+ {:type ::action-error :message (str "Wrong action: " (first action))}))
