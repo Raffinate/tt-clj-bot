@@ -23,7 +23,7 @@
 
 (def ^:private +supported-action-types+
   #{:login :api-info :logout :game-info
-    :get-gard :use-ability :combine-cards :use-card})
+    :get-card :use-ability :combine-cards :use-card})
 
 (defn- valid-action? [action-type]
   (contains? +supported-action-types+ action-type))

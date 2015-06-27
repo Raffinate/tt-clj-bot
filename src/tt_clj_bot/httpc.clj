@@ -1,7 +1,8 @@
 (ns tt-clj-bot.httpc
   (:require [clj-http.client :as http-client]
             [clj-http.cookies :as http-cookies]
-            [clj-http.conn-mgr :as http-cm]))
+            [clj-http.conn-mgr :as http-cm]
+            [clj-time.core]))
 
 (declare update-account-id
          request
@@ -184,6 +185,8 @@
    :response nil ;latest response
    :error nil ;error information
    :body (zipmap (keys +api-settings+) (repeat nil)) ;data got from response
+   :session-created (clj-time.core/now)
+   :update-time (clj-time.core/now)
    })
 
 (defn- client-id [session]
@@ -246,9 +249,14 @@
 
 (defn- update-session [session api-method response]
   ;;TODO check for errors and throw exceptions
+  (let [current-time (clj-time.core/now)]
   (merge session
          {:response response
-          :body (merge (:body session) {api-method (:body response)})}))
+          :body (merge (:body session) {api-method (-> response
+                                                       :body
+                                                       (assoc :update-time
+                                                              current-time))})
+          :update-time current-time})))
 
 (defn- request
   "session - session from (make-session).

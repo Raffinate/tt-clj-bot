@@ -7,6 +7,7 @@
                  [org.clojure/tools.logging "0.3.1"]
                  [clj-http "1.1.2"]
                  [slingshot "0.12.2"]
+                 [clj-time "0.9.0"]
                  [clojail "1.0.6"]
                  [log4j/log4j "1.2.17" :exclusions [javax.mail/mail
                                                     javax.jms/jms

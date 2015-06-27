@@ -1,6 +1,7 @@
 (ns tt-clj-bot.logic
   (:require [clojail.core :as jail]
-            [clojail.testers :as guards])
+            [clojail.testers :as guards]
+            [clj-time.core :as t])
   (:use [slingshot.slingshot :only [throw+ try+]]))
 
 
@@ -12,6 +13,28 @@
   (System/setProperty "java.security.policy", "./resources/java.security"))
 
 (def ^:dynamic *session* nil)
+
+(defn- interval-seconds [from to]
+  (t/in-seconds (t/interval from to)))
+
+(defn- change-update-time [dict now]
+  (when dict
+    ;(println dict)
+    ;(println now)
+    (assoc dict
+           :update-time (interval-seconds (:update-time dict) now))))
+
+(defn- prepare-update-time [session]
+  (when session
+    (let [now (t/now)
+          seconds-past (fn [t1] (interval-seconds t1 now))
+          change-up-time (fn [[key vdict]]
+                           [key (change-update-time vdict now)])]
+      (assoc session
+             :session-created (seconds-past (:session-created session))
+             :update-time (seconds-past (:update-time session))
+             :body (when (:body session)
+                     (into {} (map change-up-time (:body session))))))))
 
 (defn make-logic
   "Input: very restricted clojure code. This code should return a vector
@@ -37,16 +60,17 @@
       (intern sb-ns '*passwd* passwd)
     (let [sb (jail/sandbox guards/secure-tester :namespace ns-name)]
       (fn [session]
-        (try+
-         (let [out (java.io.StringWriter.)]
-           {:result
-            (sb logic-code {#'*session* session #'*out* out})
-            :output
-            (str out)})
-         (catch java.util.concurrent.TimeoutException _
-           (throw+ {:type ::timeout-error :message (:message &throw-context)}))
-         (catch Object _
-           (throw+ {:type ::execution-error :message (:message &throw-context)})))))))
+        (let [sess (prepare-update-time session)]
+          (try+
+           (let [out (java.io.StringWriter.)]
+             {:result
+              (sb logic-code {#'*session* sess #'*out* out})
+              :output
+              (str out)})
+           (catch java.util.concurrent.TimeoutException _
+             (throw+ {:type ::timeout-error :message (:message &throw-context)}))
+           (catch Object _
+             (throw+ {:type ::execution-error :message (:message &throw-context)}))))))))
          ;; (catch java.util.concurrent.ExecutionException _
          ;;   (throw+ {:type ::execution-error :message (:message &throw-context)}))
          ;; (catch java.lang.SecurityException _
