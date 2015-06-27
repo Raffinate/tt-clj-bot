@@ -81,10 +81,14 @@
                        (>= current-energy  help-action-cost)
                        false)
 
-      combine-cards ()
+      printable-hero-info (dissoc (:hero account-info)
+                                  :diary :bag :messages :equipment)
+      printable-session (assoc-in (dissoc *session* :response)
+                                  [:body :game-info :data :account :hero]
+                                  printable-hero-info)
       ]
   (println "")
-  (println *session*)
+  (println printable-session)
   (println "Hero base info: " hero-base-info)
   (println "Energy: " energy)
   (println "Action: " action "(" action-kind ")")

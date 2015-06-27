@@ -68,9 +68,11 @@
               :output
               (str out)})
            (catch java.util.concurrent.TimeoutException _
-             (throw+ {:type ::timeout-error :message (:message &throw-context)}))
+             (throw+ {:type ::timeout-error :message (:message &throw-context)
+                      :session session}))
            (catch Object _
-             (throw+ {:type ::execution-error :message (:message &throw-context)}))))))))
+             (throw+ {:type ::execution-error :message (:message &throw-context)
+                      :session session}))))))))
          ;; (catch java.util.concurrent.ExecutionException _
          ;;   (throw+ {:type ::execution-error :message (:message &throw-context)}))
          ;; (catch java.lang.SecurityException _

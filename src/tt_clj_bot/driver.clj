@@ -47,7 +47,8 @@
        (apply action-fn (tale/make-session) arguments)
        (apply action-fn session arguments))
      (catch clojure.lang.ArityException e
-       (throw+ {:type ::action-error :message (:message &throw-context)})))))
+       (throw+ {:type ::action-error :message (:message &throw-context)
+                :session session})))))
 
 (defmulti process-action
   (fn [session action]
@@ -101,26 +102,29 @@
 (defn run [logic-fn]
   (let [recur?
         (try+
+         (try+
 
-         (log :info "Starting bot...")
-         (loop [session nil]
-           (let [{:keys [result output]} (logic-fn session)
-                 actions (interleave result (repeat +interleave-wait-time+))]
-             (log :info "Bot log: " output)
-             (log :info "Actions: " (actions-hide-private-info actions))
-             (if (empty? actions)
-               (logout session)
-               (recur (reduce process-action session actions)))))
-         (log :info "Stoping bot...")
+          (log :info "Starting bot...")
+          (loop [session nil]
+            (let [{:keys [result output]} (logic-fn session)
+                  actions (interleave result (repeat +interleave-wait-time+))]
+              (log :info "Bot log: " output)
+              (log :info "Actions: " (actions-hide-private-info actions))
+              (if (empty? actions)
+                (logout session)
+                (recur (reduce process-action session actions)))))
+          (log :info "Stoping bot...")
 
-         (catch [:type :tt-clj-bot.logic/timeout-error] {:keys [message]}
-           (log :info "Execution Warning!")
-           (log :info message)
-           (wait-retry))
-         (catch [:type :tt-clj-bot.driver/action-error] {:keys [message]}
-           (log :info "Action Exception!")
-           (log :info message)
-           (wait-retry))
+          (catch [:type :tt-clj-bot.logic/timeout-error] {:keys [message session]}
+            (log :info "Execution Warning!")
+            (log :info message)
+            (logout session)
+            (wait-retry))
+          (catch [:type :tt-clj-bot.driver/action-error] {:keys [message session]}
+            (log :info "Action Exception!")
+            (log :info message)
+            (logout session)
+            (wait-retry)))
          (catch java.net.SocketException e
            (log :info "Socket Exception!")
            (log :info "Exception: " e)
