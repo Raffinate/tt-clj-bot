@@ -99,20 +99,27 @@
    (process-action nil seconds)
    true))
 
-(defn run [logic-fn]
+(defn run
+  "Argument: function that accepts vector of 2 elements:
+  1) a logic function
+  2) meta info about last logic load.
+  Return: [new-logic-fn new-meta]"
+  [logic-loader]
   (let [recur?
         (try+
          (try+
 
           (log :info "Starting bot...")
-          (loop [session nil]
-            (let [{:keys [result output]} (logic-fn session)
+          (loop [session nil
+                 ll-args [nil 0]]
+            (let [[logic-fn _ :as ll-res] (logic-loader ll-args)
+                  {:keys [result output]} (logic-fn session)
                   actions (interleave result (repeat +interleave-wait-time+))]
               (log :info "Bot log: " output)
               (log :info "Actions: " (actions-hide-private-info actions))
               (if (empty? actions)
                 (logout session)
-                (recur (reduce process-action session actions)))))
+                (recur (reduce process-action session actions) ll-res))))
           (log :info "Stoping bot...")
 
           (catch [:type :tt-clj-bot.logic/timeout-error] {:keys [message session]}
@@ -125,6 +132,11 @@
             (log :info message)
             (logout session)
             (wait-retry)))
+         (catch [:type :tt-clj-bot.logic/execution-error] {:keys [message session]}
+           (log :info "Execution error in bot source.")
+           (log :info message)
+           (logout session)
+           (wait-retry))
          (catch java.net.SocketException e
            (log :info "Socket Exception!")
            (log :info "Exception: " e)
@@ -133,7 +145,7 @@
            (log :info  "\n" (interpose "\n" (map str (:stack-trace &throw-context))))
            (wait-retry)))]
     (when recur?
-      (recur logic-fn))))
+      (recur logic-loader))))
 
 
 

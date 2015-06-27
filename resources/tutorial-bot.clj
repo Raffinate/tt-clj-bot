@@ -83,9 +83,11 @@
 
       printable-hero-info (dissoc (:hero account-info)
                                   :diary :bag :messages :equipment)
-      printable-session (assoc-in (dissoc *session* :response)
+      printable-session (if printable-hero-info
+                          (assoc-in (dissoc *session* :response)
                                   [:body :game-info :data :account :hero]
                                   printable-hero-info)
+                          *session*)
       ]
   (println "")
   (println printable-session)

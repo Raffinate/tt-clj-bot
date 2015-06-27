@@ -15,6 +15,7 @@
 (def ^:dynamic *session* nil)
 
 (defn- interval-seconds [from to]
+  ;(println from to)
   (t/in-seconds (t/interval from to)))
 
 (defn- change-update-time [dict now]
@@ -26,6 +27,7 @@
 
 (defn- prepare-update-time [session]
   (when session
+    (println session)
     (let [now (t/now)
           seconds-past (fn [t1] (interval-seconds t1 now))
           change-up-time (fn [[key vdict]]

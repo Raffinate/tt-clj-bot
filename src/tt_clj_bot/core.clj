@@ -30,6 +30,41 @@
                  (-> args count (= 2))))
     (throw+ {:type ::command-line-error :message (help-string +help-data+)})))
 
+(defn- load-logic [bot-file email password]
+  (-> bot-file
+      slurp
+      read-string
+      (make-logic email password)))
+
+(defn- eof-error [e]
+  (logger/error "Execution error in bot/account source.")
+  (logger/error (:message e))
+  (logger/error "Perhaps you have parentheses mismatched."))
+
+(defn make-reloadable-logic [bot-file email password]
+  (let [load-logic (fn [] (load-logic bot-file email password))]
+
+    (fn [[fallback-logic last-modified]]
+      (let [modified (.lastModified bot-file)]
+        (if (nil? fallback-logic)
+          (do (logger/info "Creating new logic.")
+              [(load-logic) modified])
+          (if (< last-modified modified)
+            (try+
+             (logger/info "New logic avaible. Reloading...")
+             [(load-logic) modified]
+             (catch java.io.FileNotFoundException _
+               (logger/error &throw-context)
+               (logger/error "Fallback to old logic.")
+               [fallback-logic modified])
+             (catch java.lang.RuntimeException e
+               (if (= (:message &throw-context) "EOF while reading")
+                 (do (eof-error &throw-context)
+                     (logger/error "Fallback to old logic.")
+                     [fallback-logic modified])
+                 (throw+ e))))
+            [fallback-logic last-modified]))))))
+
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
@@ -39,30 +74,21 @@
     (setup-jvm-default)
     (let [account (when (= (count args) 2)
                     (-> args second slurp read-string))]
-      (-> args
-          first
-          slurp
-          read-string
-          (make-logic (:email account) (:password account))
-          run))
+      (run (make-reloadable-logic (java.io.File. (first args))
+                                  (:email account) (:password account))))
     (catch [:type :tt-clj-bot.core/command-line-error] {:keys [message]}
       (println message))
     (catch java.io.FileNotFoundException _
       (logger/error (:message &throw-context)))
-    (catch [:type :tt-clj-bot.logic/execution-error] {:keys [message]}
-      (logger/error "Execution error in bot source.")
-      (logger/error message))
     (catch java.lang.RuntimeException e
       (if (= (:message &throw-context) "EOF while reading")
-        (do (logger/error "Execution error in bot/account source.")
-            (logger/error (:message &throw-context))
-            (logger/error "Perhaps you have parentheses mismatched."))
-        (throw+ e)))
+        (eof-error &throw-context)
+        (throw+ e))))
    (catch Object e
      (logger/error "Exception: " e)
      (logger/error &throw-context)
      (logger/error "StackTrace:")
-     (logger/error  "\n" (interpose "\n" (map str (:stack-trace &throw-context))))))))
+     (logger/error  "\n" (interpose "\n" (map str (:stack-trace &throw-context)))))))
 
 
 
