@@ -16,6 +16,7 @@
        ~result)))
 
 (def ^:private +error-wait-time+ 30)
+
 (def ^:private +interleave-wait-time+ 1)
 
 (defn- wait [seconds]
@@ -112,12 +113,12 @@
          (try+
 
           (log :info "Starting bot...")
-          (loop [session nil
+          (loop [session (tale/make-session)
                  ll-args [nil 0]]
             (let [[logic-fn _ :as ll-res] (logic-loader ll-args)
                   {:keys [result output]} (logic-fn session)
                   actions (interleave result (repeat +interleave-wait-time+))]
-              (log :info "Bot log: " output)
+              (log :info "Bot log: \n"output)
               (log :info "Actions: " (actions-hide-private-info actions))
               (if (empty? actions)
                 (logout session)

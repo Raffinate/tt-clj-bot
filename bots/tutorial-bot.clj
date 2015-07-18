@@ -1,87 +1,74 @@
-(let [game-info (-> *session*
-                       :body :game-info)
-      account-info (-> game-info
-                       :data :account)
-      hero-base-info (-> account-info
-                         :hero :base)
-      energy (-> account-info
-                 :hero :energy)
-      action (-> account-info
-                 :hero :action)
+(let [logged-in? (-> *login*
+                     :status (= "ok"))
 
-      cards-data (-> account-info
-                          :hero :cards)
+      ;;Health data
+      hp (:health *hero-base*)
+      max-hp (:max_health *hero-base*)
+      alive? (:alive *hero-base*)
+      hpp (if (integer? max-hp)
+            (/ hp max-hp)
+            1)
 
-      old-info? (-> account-info
-                    :is_old true?)
-      own-info? (-> account-info
-                    :is_own true?)
-      logged-in? (-> *session*
-                     :body :login :status (= "ok"))
+      ;;Energy data
+      current-energy (get *hero-energy* :value 0)
+      max-energy (get *hero-energy* :max 12)
+      bonus-energy (get *hero-energy* :bonus 0)
 
-      hp (:health hero-base-info)
-      max-hp (:max_health hero-base-info)
-      alive? (:alive hero-base-info)
-      hpp (if (integer? max-hp) (/ hp max-hp) 1)
-
-
-      current-energy (:value energy)
-      max-energy (:max energy)
-      bonus-energy (:bonus energy)
-
-
-      action-type (:type action)
-      action-percents (:percents action)
-      action-boss? (:is_boss action)
+      ;;Current Hero action information
+      action-type (:type *hero-action*)
+      action-percents (:percents *hero-action*)
+      action-boss? (:is_boss *hero-action*)
       action-kind (cond
                     (contains? #{0 4 5 6 7 8 10 15} action-type) :safe
                     (= action-type 3) :fight
                     (contains? #{1 2 3 9} action-type) :danger
                     :else :default)
-      help-action-cost (-> *session*
-                           :body :api-info :data :abilities_cost :help)
 
-      card-help-count (:help_count cards-data)
-      card-help-barrier (:help_barrier cards-data)
-      get-card? (when (and (integer? card-help-count)
-                           (integer? card-help-barrier)
-                           (= card-help-barrier card-help-count))
-                  true)
+      ;;Information about help action and next cards available
+      help-action-cost (get-in *api-info*
+                           [:data :abilities_cost :help] 4)
 
-      cards (:cards cards-data)
+      card-help-count (get *hero-cards* :help_count 0)
+      card-help-barrier (get *hero-cards* :help_barrier 20)
+      get-card? (>= card-help-count card-help-barrier)
+
+      ;;Information about cards
+      cards (:cards *hero-cards*)
       merge-cards (->> cards
-                       (filter #(< (:rarity %) 4))
-                       (partition-by :rarity)
+                       (filter #(< (:rarity %) 3))
+                       (group-by :rarity)
+                       vals
                        (filter #(>= (count %) 3))
                        (map (fn [same-rarity-cards]
                               (mapv :uid same-rarity-cards)))
                        (#(when (not (empty? %)) %))
                        first)
 
+      ;;Your bot command templates
+      login-command [:login *email* *passwd*]
+      info-command [:game-info]
+      api-info-command [:api-info]
+      help-command [:use-ability :help]
+      get-card-command [:get-card]
+      merge-cards-command [:combine-cards] ;don't forget to add the cards
 
-      login-action [:login *email* *passwd*]
-      info-action [:game-info]
-      api-info-action [:api-info]
-      help-action [:use-ability :help]
-      get-card-action [:get-card]
-      merge-cards-action [:combine-cards] ;don't forget to add the cards
-
+      ;;Bot timing commands
       base-wait-time (int (+ (* 275 hpp hpp) (* 85 hpp)))
       safe-wait-time 360
       boss-wait-time (int (/ base-wait-time 2))
       wait-time (if action-boss? boss-wait-time base-wait-time)
-      ability-wait-time 5
+      command-wait-time 5
+      error-wait-time 30
 
+      ;;Bot help values
       hpp-help-default 0.1
       fight-percent-to-help 0.8
       hpp-help-critical 0.05
       safe-pause-percent 0.5
-      enough-energy? (if (and (integer? current-energy)
-                              (integer? help-action-cost))
-                       (>= current-energy  help-action-cost)
-                       false)
+      enough-energy? (>= current-energy  help-action-cost)
 
-      printable-hero-info (dissoc (:hero account-info)
+      ;;Remove lots of useless strings from 
+      printable-hero-info (dissoc *hero-info*
                                   :diary :bag :messages :equipment)
       printable-session (if printable-hero-info
                           (assoc-in (dissoc *session* :response)
@@ -91,56 +78,56 @@
       ]
   (println "")
   (println printable-session)
-  (println "Hero base info: " hero-base-info)
-  (println "Energy: " energy)
-  (println "Action: " action "(" action-kind ")")
+  (println "Hero base info: " *hero-base*)
+  (println "Energy: " *hero-energy*)
+  (println "Action: " *hero-action* "(" action-kind ")")
   (println "Cards: " card-help-count "/" card-help-barrier)
 
   (cond
-    (not *session*) (do (print "Logging in...")
-                        [login-action api-info-action])
+    (not *login*) (do (print "Logging in...")
+                        [login-command api-info-command])
 
-    (not logged-in?) (do (println "Couldn't log in...")
-                         (print "Logging again in 30 seconds...")
-                         [30 login-action])
+    (not *logged-in?*) (do (println "Couldn't log in...")
+                           (print "Logging again in 30 seconds...")
+                           [error-wait-time login-command])
 
-    (not game-info) (do (println "Requesting game info first time...")
-                           [info-action])
+    (not *game-info*) (do (println "Requesting game info first time...")
+                          [info-command])
 
-    (not own-info?) (do (println "Game info is NOT about own character.")
-                        (print "Logging again in 30 seconds...")
-                        [30 login-action])
+    (not *is-own?*) (do (println "Game info is NOT about own character.")
+                          (print "Logging again in 30 seconds...")
+                          [error-wait-time login-command])
 
-    old-info? (do (print "Game info is old!")
-                  [5 info-action])
+    *is-old?* (do (print "Game info is old!")
+                    [command-wait-time info-command])
 
     (and (= action-kind :fight) (< hpp hpp-help-critical) enough-energy?)
     (do (print "Critical situaltion...")
-        [help-action info-action])
+        [help-command info-command])
 
     (and (= action-kind :fight)
          (< action-percents fight-percent-to-help)
          (< hpp hpp-help-default)
          enough-energy?)
     (do (print "Helping hero...")
-        [help-action ability-wait-time info-action])
+        [help-command command-wait-time info-command])
 
     (true? get-card?) (do (print "Whoaaa... A new destiny card!")
-                          [get-card-action ability-wait-time info-action])
+                          [get-card-command command-wait-time info-command])
 
     merge-cards (do (print "Merging cards to get the best! It would be sad to break them.")
-                    [(concat merge-cards-action merge-cards)
-                    ability-wait-time
-                    info-action])
+                    [(concat merge-cards-command merge-cards)
+                    command-wait-time
+                    info-command])
 
     (and (= action-kind :safe) (< action-percents safe-pause-percent))
     (do (print "It's nice to be safe...")
-        [safe-wait-time info-action])
+        [safe-wait-time info-command])
 
     (and (= action-kind :fight) (= current-energy max-energy) enough-energy?)
     (do (print "Gonna get more card points! Helping...")
-        [help-action wait-time info-action])
+        [help-command wait-time info-command])
 
     :else
     (do (print "Boring...")
-        [wait-time info-action])))
+        [wait-time info-command])))

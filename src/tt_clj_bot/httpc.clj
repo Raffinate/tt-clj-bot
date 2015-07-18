@@ -165,7 +165,7 @@
                  :version "1.0"
                  }
    :choose-quest {:method :post
-                  :path ["/game/quests/api/choose/"]
+                  :path ["/game/quests/api/choose"]
                   :version "1.0"}
    :get-card {:method :post
               :path ["/game/cards/api/get"]

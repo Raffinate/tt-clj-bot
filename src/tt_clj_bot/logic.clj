@@ -27,7 +27,6 @@
 
 (defn- prepare-update-time [session]
   (when session
-    (println session)
     (let [now (t/now)
           seconds-past (fn [t1] (interval-seconds t1 now))
           change-up-time (fn [[key vdict]]
@@ -37,6 +36,51 @@
              :update-time (seconds-past (:update-time session))
              :body (when (:body session)
                      (into {} (map change-up-time (:body session))))))))
+
+(def +short-vars+
+  {'*api-info* #(get-in % [:body :api-info])
+   '*login* #(get-in % [:body :login])
+   '*logout* #(get-in % [:body :logout])
+   '*game-info* #(get-in % [:body :game-info])
+   '*account-info* #(get-in % [:body :account-info])
+   '*places-list* #(get-in % [:body :places-list])
+   '*place-info* #(get-in % [:body :place-info])
+   '*hero-account* #(get-in % [:body :game-info :data :account])
+   '*hero-info* #(get-in % [:body :game-info :data :account :hero])
+   '*enemy-account* #(get-in % [:body :game-info :data :enemy])
+   '*enemy-info* #(get-in % [:body :game-info :data :enemy :info])
+   '*logged-in?* #(= "ok" (get-in % [:body :login :status]))
+   '*is-own?* #(get-in % [:body :game-info :data :account :is_own])
+   '*is-old?* #(get-in % [:body :game-info :data :account :is_old])
+   '*hero-pvp* #(get-in % [:body :game-info :data :account :hero :pvp])
+   '*enemy-pvp* #(get-in % [:body :game-info :data :enemy :hero :pvp])
+   '*hero-energy* #(get-in % [:body :game-info :data :account :hero :energy])
+   '*enemy-energy* #(get-in % [:body :game-info :data :account :enemy :energy])
+   '*hero-cards* #(get-in % [:body :game-info :data :account :hero :cards])
+   '*hero-companion* #(get-in % [:body :game-info :data :account :hero :companion])
+   '*hero-base* #(get-in % [:body :game-info :data :account :hero :base])
+   '*enemy-base* #(get-in % [:body :game-info :data :account :enemy :base])
+   '*hero-quests* #(get-in % [:body :game-info :data :account :hero :quests])
+   '*hero-action* #(get-in % [:body :game-info :data :account :hero :action])
+   '*bot-commands* #(keys (:api-settings %))
+   })
+
+
+(defn- prepare-help [session]
+  (str "Actions: " (keys (:api-settings session)) "\n"
+       "Short access data: " (->> (keys +short-vars+)
+                                  (cons '*session*)
+                                  (cons '*email*)
+                                  (cons '*passwd*))))
+
+(defn- intern-short-vars [sb-ns]
+  (map (fn [[v f]] (intern sb-ns v f)) +short-vars+))
+  ;(intern sb-ns '*HELP* (prepare-help session)))
+
+;; (defn- prepare-short-vars [session]
+;;   (reduce merge (map (fn [[v f]]
+;;                        {v (f session)}) +short-vars+)))
+
 
 (defn make-logic
   "Input: very restricted clojure code. This code should return a vector
@@ -53,16 +97,18 @@
   {:result <result of restrincted clojure code>
   :output <string of outputs of restricted clojure code that will be logged>}"
   [logic-code email passwd]
-  (let [ns-name 'sandbox
-        sb-ns (create-ns ns-name)
+  (let [nsname 'sandbox
+        sb-ns (create-ns nsname)
         curr-ns *ns*]
     (binding [*ns* sb-ns]
       (use '[tt-clj-bot.logic :only (*session*)]))
-      (intern sb-ns '*email* email)
-      (intern sb-ns '*passwd* passwd)
-    (let [sb (jail/sandbox guards/secure-tester :namespace ns-name)]
+    (intern sb-ns '*email* email)
+    (intern sb-ns '*passwd* passwd)
+    (let [sb (jail/sandbox guards/secure-tester :namespace nsname)]
       (fn [session]
         (let [sess (prepare-update-time session)]
+          (doseq [[v f] +short-vars+] (intern sb-ns v (f sess)))
+          (intern sb-ns '*HELP* (prepare-help sess))
           (try+
            (let [out (java.io.StringWriter.)]
              {:result
